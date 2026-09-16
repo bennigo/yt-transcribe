@@ -6,6 +6,13 @@ requires-python = ">=3.12"
 dependencies = [
     "yt-dlp>=2024.0",
     "faster-whisper>=1.0.0",
+]
+
+[project.optional-dependencies]
+# CUDA runtime wheels — only needed for GPU transcription. They are ~2 GB, so
+# they live here rather than in `dependencies` and are skipped on CPU machines
+# and in CI. Install with: uv tool install '.[gpu]'
+gpu = [
     "nvidia-cublas-cu12",
     "nvidia-cudnn-cu12",
     "nvidia-cuda-runtime-cu12",
@@ -20,3 +27,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/yt_transcribe"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

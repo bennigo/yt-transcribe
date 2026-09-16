@@ -10,6 +10,16 @@ from yt_transcribe.downloader import VideoMeta
 from yt_transcribe.transcriber import Segment
 
 
+def _yaml_dq(text: str) -> str:
+    """Quote a string as a YAML double-quoted scalar.
+
+    Titles frequently contain `"` (e.g. 'Prof. X: "We Cannot Stop" Iran').
+    Interpolating that raw into `aliases: - "…"` produces invalid YAML, so
+    escape backslashes and quotes.
+    """
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def format_duration(seconds: int) -> str:
     """Format duration as H:MM:SS or MM:SS."""
     hours, remainder = divmod(seconds, 3600)
@@ -151,7 +161,7 @@ def format_vault_note(
     content = f"""---
 id: {note_id}
 aliases:
-  - "{meta.title}"
+  - {_yaml_dq(meta.title)}
 tags:
   - type/reference
   - source/youtube
@@ -219,7 +229,7 @@ def format_local_vault_note(
     content = f"""---
 id: {note_id}
 aliases:
-  - "{title}"
+  - {_yaml_dq(title)}
 tags:
   - type/reference
   - ctx/ai
@@ -256,7 +266,7 @@ def format_vault_note_from_subs(
     content = f"""---
 id: {note_id}
 aliases:
-  - "{meta.title}"
+  - {_yaml_dq(meta.title)}
 tags:
   - type/reference
   - source/youtube

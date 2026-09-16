@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import os
 import re
 import tempfile
@@ -53,7 +54,7 @@ def fetch_metadata(url: str) -> VideoMeta:
 
     return VideoMeta(
         title=info.get("title", "Untitled"),
-        channel=info.get("channel", info.get("uploader", "Unknown")),
+        channel=info.get("channel") or info.get("uploader") or "Unknown",
         upload_date=upload_date,
         duration=int(info.get("duration", 0)),
         description=info.get("description", ""),
@@ -94,7 +95,7 @@ def download_audio(url: str, output_dir: Path) -> AudioResult:
 
     meta = VideoMeta(
         title=info.get("title", "Untitled"),
-        channel=info.get("channel", info.get("uploader", "Unknown")),
+        channel=info.get("channel") or info.get("uploader") or "Unknown",
         upload_date=upload_date,
         duration=int(info.get("duration", 0)),
         description=info.get("description", ""),
@@ -153,10 +154,23 @@ def fetch_subtitles(url: str, lang: str = "en") -> str | None:
 
 
 def _clean_vtt(vtt_text: str) -> str:
-    """Convert VTT subtitle text to plain timestamped text."""
+    """Convert VTT subtitle text to plain timestamped text.
+
+    YouTube's rolling captions repeat a cue's text across consecutive
+    timestamps; those repeats are dropped. HTML entities (``&amp;``, ``&#39;``)
+    are decoded and inline styling tags (``<c…>``) stripped.
+    """
     lines: list[str] = []
     current_time = ""
     current_text = ""
+    last_emitted = ""
+
+    def flush() -> None:
+        nonlocal current_text, last_emitted
+        if current_text and current_text != last_emitted:
+            lines.append(f"[{current_time}] {current_text}")
+            last_emitted = current_text
+        current_text = ""
 
     for line in vtt_text.splitlines():
         line = line.strip()
@@ -171,22 +185,19 @@ def _clean_vtt(vtt_text: str) -> str:
 
         # Timestamp line: "00:00:01.234 --> 00:00:05.678"
         if "-->" in line:
-            if current_text:
-                lines.append(f"[{current_time}] {current_text}")
-            parts = line.split("-->")
-            raw_time = parts[0].strip()
+            flush()
+            raw_time = line.split("-->")[0].strip()
             time_parts = raw_time.split(":")
             if len(time_parts) == 3:
                 current_time = raw_time.split(".")[0]
             else:
                 current_time = f"00:{raw_time.split('.')[0]}"
-            current_text = ""
-        elif not line[0].isdigit() or ":" not in line:
-            clean = re.sub(r"<[^>]+>", "", line)
-            if clean and clean != current_text:
+        elif line.isdigit():
+            continue  # cue index, as used by some VTT flavours
+        else:
+            clean = html.unescape(re.sub(r"<[^>]+>", "", line)).strip()
+            if clean:
                 current_text = clean
 
-    if current_text:
-        lines.append(f"[{current_time}] {current_text}")
-
+    flush()
     return "\n".join(lines)

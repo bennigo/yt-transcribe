@@ -42,9 +42,7 @@ YouTube URL ──yt-dlp──► audio (m4a→wav) ──faster-whisper──�
 
 - Python **3.12+**
 - **ffmpeg** on `PATH` (`sudo apt install ffmpeg` / `brew install ffmpeg`)
-- Optional: an NVIDIA GPU. The default install pulls the CUDA runtime wheels
-  (`nvidia-cublas-cu12`, `nvidia-cudnn-cu12`, `nvidia-cuda-runtime-cu12`); on a CPU-only machine,
-  drop those three from `pyproject.toml` before installing.
+- Optional: an NVIDIA GPU for faster transcription (see the `[gpu]` extra below)
 
 ## Install
 
@@ -55,8 +53,13 @@ fetch the wrong thing. Install from source instead:
 ```bash
 git clone https://github.com/bennigo/yt-transcribe
 cd yt-transcribe
-uv tool install --force .
+
+uv tool install --force .            # CPU
+uv tool install --force '.[gpu]'     # + CUDA runtime wheels (~2 GB)
 ```
+
+The CUDA wheels live in an optional `[gpu]` extra rather than in `dependencies`, so CPU machines
+(and CI) don't download ~2 GB they can't use.
 
 or with pipx:
 
@@ -183,7 +186,8 @@ surfaces as a yt-dlp warning; disabling cookies restores the previous behaviour.
 language (or YouTube auto-generated them). Drop the flag to use Whisper.
 
 **Everything is very slow** — Whisper is running on CPU. Check the `Using device: … (compute: …)`
-line printed at start-up. GPU use requires the three `nvidia-*` wheels and a working CUDA driver.
+line printed at start-up. GPU use requires the `[gpu]` extra (`uv tool install --force '.[gpu]'`)
+and a working CUDA driver.
 
 **Wrong output location** — with `-f vault` and no `-o`, notes go to the configured `inbox_path`.
 Set `[vault] inbox_path` or pass `-o`.
@@ -191,12 +195,13 @@ Set `[vault] inbox_path` or pass `-o`.
 ## Development
 
 ```bash
-uv sync
-uv run --with pytest pytest
+uv sync                    # installs the dev group (pytest)
+uv run pytest              # 106 tests, no network / GPU / real vault
 ```
 
-`tests/` is currently a placeholder — there is **no test suite yet**, so treat `--force` runs as authoritative
-and re-check output by hand after changing the formatter or downloader.
+The suite fakes `yt-dlp`, `faster-whisper` and `ctranslate2`, and points every config/cache lookup
+at a tmp dir, so it runs in well under a second and never touches your vault. CI runs it on Python
+3.12 and 3.13 (`.github/workflows/ci.yml`), plus a check that every CLI flag is documented here.
 
 ## See also
 
